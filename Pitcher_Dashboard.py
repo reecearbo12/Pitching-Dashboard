@@ -16,7 +16,13 @@ from matplotlib.backends.backend_pdf import PdfPages
 # --- Page Setup ---
 st.set_page_config(page_title="Pitching Dashboard", layout="wide")
 
-st.title("⚾ Pitching Dashboard")
+# --- Player Name Input ---
+player_name = st.text_input("Enter Player Name:", "")
+if player_name:
+    st.title(f"⚾ {player_name}'s Pitching Dashboard")
+else:
+    st.title("⚾ Pitching Dashboard")
+
 st.markdown(
     "Interactive visualization of pitching data with multiple plots. "
     "Please upload .csv files downloaded directly from Rapsodo without editing."
@@ -26,30 +32,12 @@ st.markdown(
 uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
 
 pitching = None
-player_name = None
 
 if uploaded_file is not None:
     try:
-        # --- Read first few lines to extract player info ---
-        uploaded_file.seek(0)
-        lines = uploaded_file.read().decode(errors='ignore').splitlines()
-        uploaded_file.seek(0)
-
-        # Extract player info from first two lines
-        try:
-            player_id_line = lines[0].split(",")
-            player_name_line = lines[1].split(",")
-            player_name = player_name_line[1].strip().replace('"', '')
-            player_id = player_id_line[1].strip().replace('"', '')
-        except Exception:
-            player_name = "Unknown Player"
-            player_id = "Unknown ID"
-
-        # --- Load the actual pitching data, skipping metadata ---
-        uploaded_file.seek(0)
+        # Skip metadata lines (Player ID, Player Name, blank line)
         pitching = pd.read_csv(uploaded_file, skiprows=3)
-        st.success(f"✅ CSV loaded successfully for {player_name} (ID: {player_id})")
-
+        st.success("✅ CSV loaded successfully after skipping metadata lines!")
     except pd.errors.ParserError as e:
         st.error(f"❌ Parsing error: {e}")
     except Exception as e:
@@ -57,7 +45,6 @@ if uploaded_file is not None:
 
 # --- Continue only if data is valid ---
 if pitching is not None:
-    st.title(f"⚾ {player_name}'s Pitching Dashboard")
     st.dataframe(pitching.head())
 
     # --- Clean up columns ---
@@ -219,4 +206,4 @@ if pitching is not None:
     )
 
 else:
-    st.info("👆 Upload your pitching CSV file to start.")
+    st.info("👆 Enter a player name and upload a CSV file to start.")
