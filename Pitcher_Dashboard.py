@@ -26,11 +26,38 @@ else:
 st.markdown("Interactive visualization of pitching data with multiple plots. Please upload .csv files downloaded directly from Rapsodo without editing.")
 
 # --- File Upload ---
-uploaded_file = st.file_uploader("Upload your pitching CSV file", type=["csv"])
+uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
+
+pitching = None
 
 if uploaded_file is not None:
-    # --- Load & Clean Data ---
-    pitching = pd.read_csv(uploaded_file)
+    try:
+        # Try reading normally
+        pitching = pd.read_csv(uploaded_file)
+        st.success("✅ CSV loaded successfully!")
+    except pd.errors.ParserError:
+        st.warning("⚠️ Parsing error detected — trying automatic delimiter detection...")
+        uploaded_file.seek(0)
+        pitching = pd.read_csv(uploaded_file, sep=None, engine='python')
+        st.success("✅ CSV loaded successfully after auto-fix!")
+    except UnicodeDecodeError:
+        st.warning("⚠️ Encoding issue detected — retrying with Latin-1 encoding...")
+        uploaded_file.seek(0)
+        pitching = pd.read_csv(uploaded_file, encoding='latin1')
+        st.success("✅ CSV loaded successfully after encoding fix!")
+    except Exception as e:
+        st.error(f"❌ Unable to read the uploaded file.\n\nError: {e}")
+        pitching = None
+
+# --- Optional: Show a sample of the file ---
+if uploaded_file is not None and pitching is None:
+    uploaded_file.seek(0)
+    sample = uploaded_file.read(500).decode(errors='ignore')
+    st.text_area("File preview (for debugging)", sample, height=200)
+
+# --- Continue only if data is valid ---
+if pitching is not None:
+    st.dataframe(pitching.head())
     
     pitching = pitching.iloc[2:].reset_index(drop=True)
     pitching.columns = pitching.iloc[0]
