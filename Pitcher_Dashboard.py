@@ -45,16 +45,28 @@ uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
 
 pitching = None
 
+
 if uploaded_file is not None:
     try:
-        #Skip first 3 lines (Player ID, Player Name, blank line)
+        # Skip first 3 lines (Player ID, Player Name, blank line)
         pitching = pd.read_csv(uploaded_file, skiprows=3)
         st.success("✅ CSV loaded successfully!")
+
+        # 🟢 Reset pointer to start for second read
+        uploaded_file.seek(0)
+        pitching_full = pd.read_csv(uploaded_file, skiprows=3)
+        pitching_full = pitching_full.dropna(axis=1, how="all")
+
+    except pd.errors.EmptyDataError:
+        st.error("❌ The uploaded file appears to be empty or missing headers.")
+        pitching = None
     except pd.errors.ParserError as e:
         st.error(f"❌ Parsing error: {e}")
+        pitching = None
     except Exception as e:
         st.error(f"❌ Unexpected error: {e}")
-
+        pitching = None
+        
 #Continue only if data is valid
 if pitching is not None:
     st.dataframe(pitching.head())
@@ -82,6 +94,34 @@ if pitching is not None:
     ]
     pitching[numeric_columns] = pitching[numeric_columns].apply(pd.to_numeric, errors="coerce")
     pitching["Pitch Number"] = pitching.groupby("Date").cumcount() + 1
+
+       # Keep the same columns and apply identical cleaning as main pitching df
+    expected_cols = [
+        "No", "Date", "Pitch Type", "Is Strike", "Strike Zone Side", "Strike Zone Height",
+        "Velocity", "Total Spin", "Spin Efficiency (release)", "Spin Direction",
+        "HB (trajectory)", "VB (spin)", "Horizontal Angle", "Release Angle",
+        "Release Height", "Release Side", "Gyro Degree (deg)", "Release Extension (ft)"
+    ]
+
+       # Only keep columns that exist in the uploaded data
+    pitching_full = pitching_full[[col for col in expected_cols if col in pitching_full.columns]]
+
+    # Format and clean same as main pitching DataFrame
+    pitching_full["Date"] = pd.to_datetime(pitching_full["Date"], errors="coerce")
+    pitching_full["Date"] = pitching_full["Date"].dt.strftime("%#m/%#d/%#y")
+    pitching_full = pitching_full[pitching_full["Pitch Type"] != "-"].reset_index(drop=True)
+
+    numeric_columns = [
+        "Strike Zone Side", "Strike Zone Height", "Velocity", "Total Spin",
+        "Spin Efficiency (release)", "HB (trajectory)", "VB (spin)",
+        "Horizontal Angle", "Release Angle", "Release Height", "Release Side",
+        "Gyro Degree (deg)", "Release Extension (ft)"
+    ]
+    pitching_full[numeric_columns] = pitching_full[numeric_columns].apply(pd.to_numeric, errors="coerce")
+    pitching_full["Pitch Number"] = pitching_full.groupby("Date").cumcount() + 1
+
+    # Finally, filter for only non-missing velocity rows
+    pitching_velocity_full = pitching_full[pitching_full["Velocity"].notna()].copy()
 
     #Sidebar Filters
     st.sidebar.header("Filter Options")
@@ -165,7 +205,7 @@ if pitching is not None:
     #Tab 2: Velocity Plot
     with tab2:
         st.subheader("Velocity Trends by Day with Hardest Pitches Labeled")
-        pitching_sorted = pitching.sort_values(by=["Date", "Pitch Number"])
+        pitching_sorted = pitching_full.sort_values(by=["Date", "Pitch Number"])
 
         for day in pitching_sorted["Date"].unique():
             st.markdown(f"**Date: {day}**")
